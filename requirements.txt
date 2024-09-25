@@ -1,0 +1,10 @@
+requests
+pytz
+sqlalchemy
+pymysql
+python-jose
+fastapi
+passlib
+bcrypt
+email-validator
+python-ulid[pydantic]
