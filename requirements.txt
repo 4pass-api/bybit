@@ -9,3 +9,4 @@ bcrypt
 email-validator
 python-ulid[pydantic]
 ccxt
+python-dotenv
