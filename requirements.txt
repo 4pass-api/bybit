@@ -3,7 +3,7 @@ pytz
 sqlalchemy
 pymysql
 python-jose
-fastapi
+fastapi[standard]
 passlib
 bcrypt
 email-validator
