@@ -15,14 +15,6 @@ from src.schemas.tradingview import TradingViewRequest
 
 load_dotenv()
 
-exs = [ccxt.bybit({
-    'apiKey': os.getenv('BYBIT_APIKEY_1'),
-    'secret': os.getenv('BYBIT_SECRET_1')
-}), ccxt.bybit({
-    'apiKey': os.getenv('BYBIT_APIKEY_2'),
-    'secret': os.getenv('BYBIT_SECRET_2')
-})]
-
 api_key_header = APIKeyHeader(name='x-api-key', auto_error=False)
 
 
@@ -52,10 +44,22 @@ def request_from_tradingview(ip: str = Depends(get_ip)):
         )
 
 
+def get_exchanges(request: Request):
+    return request.app.state.exs
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    app.state.exs = [ccxt.bybit({
+        'apiKey': os.getenv('BYBIT_APIKEY_1'),
+        'secret': os.getenv('BYBIT_SECRET_1')
+    }), ccxt.bybit({
+        'apiKey': os.getenv('BYBIT_APIKEY_2'),
+        'secret': os.getenv('BYBIT_SECRET_2')
+    })]
+
     # Load the ML model
-    for ex in exs:
+    for ex in app.state.exs:
         ex.load_markets()
     yield
 
@@ -115,7 +119,9 @@ async def api_documentation(request: Request):
 
 
 @app.get('/balance', dependencies=[Depends(get_api_key)])
-async def balance():
+async def balance(
+        exs=Depends(get_exchanges)
+):
     try:
         return {idx: ex.fetch_balance() for idx, ex in enumerate(exs, 1)}
     except Exception as e:
@@ -128,7 +134,8 @@ async def balance():
 @app.get('/positions', dependencies=[Depends(get_api_key)])
 async def positions(
         symbol: Annotated[
-            str, Query(..., title="Symbol to get positions for", description="Symbol to get positions for")]
+            str, Query(..., title="Symbol to get positions for", description="Symbol to get positions for")],
+        exs=Depends(get_exchanges)
 ):
     try:
         return {idx: ex.fetch_position(symbol) for idx, ex in enumerate(exs, 1)}
@@ -144,7 +151,8 @@ async def set_leverage(
         symbol: Annotated[
             str, Query(..., title="Symbol to set leverage for", description="Symbol to set leverage for")],
         leverage: Annotated[
-            int, Query(..., title="Leverage to set", description="Leverage to set", ge=1, le=100)]
+            int, Query(..., title="Leverage to set", description="Leverage to set", ge=1, le=100)],
+        exs=Depends(get_exchanges)
 ):
     try:
         return {idx: ex.set_leverage(leverage, symbol) for idx, ex in enumerate(exs, 1)}
@@ -159,7 +167,8 @@ async def set_leverage(
 async def setup_account(
         symbol: Annotated[
             str, Query(..., title="Symbol to setup account for", description="Symbol to setup account for")
-        ]
+        ],
+        exs=Depends(get_exchanges)
 ):
     try:
         return {idx: ex.set_position_mode(False, symbol) for idx, ex in enumerate(exs, 1)}
@@ -174,7 +183,8 @@ async def setup_account(
 async def get_symbols_by_keyword(
         keyword: Annotated[
             str, Query(..., title="Keyword to search for", description="Keyword to search for")
-        ]
+        ],
+        exs=Depends(get_exchanges)
 ):
     all_symbols = list(exs[0].markets.keys())
     filter_symbols = [symbol for symbol in all_symbols if keyword.lower() in symbol.lower()]
@@ -184,9 +194,58 @@ async def get_symbols_by_keyword(
 
 @app.post('/oneway', dependencies=[Depends(request_from_tradingview)])
 async def oneway_action(
-        payload: TradingViewRequest
+        payload: TradingViewRequest,
+        exs=Depends(get_exchanges)
 ):
-    if '1' in payload.action:
-        exs[0].create_order(payload.symbol, 'market', str(payload.side), payload.size)
-    else:
-        exs[1].create_order(payload.symbol, 'market', str(payload.side), payload.size)
+    order_size = payload.size / exs[0].markets[payload.symbol]['contractSize']
+
+    try:
+        if '1' in payload.action:
+            params = {'positionIdx': 0}
+            if 'close_position' in payload.action:
+                params['reduceOnly'] = True
+                current_position = exs[0].fetch_position(payload.symbol)
+
+                if current_position['side'] == 'long':
+                    assert payload.side == 'sell', f"Wrong side to close position: {current_position['side']} >> {payload.side}"
+                else:
+                    assert payload.side == 'buy', f"Wrong side to close position: {current_position['side']} >> {payload.side}"
+
+                order_size = current_position['contracts']
+
+            return exs[0].create_order(
+                payload.symbol,
+                'market',
+                str(payload.side),
+                order_size,
+                None,
+                params
+            )
+
+        else:
+            params = {'positionIdx': 0}
+            if 'close_position' in payload.action:
+                params['reduceOnly'] = True
+                current_position = exs[1].fetch_position(payload.symbol)
+
+                if current_position['side'] == 'long':
+                    assert payload.side == 'sell', f"Wrong side to close position: {current_position['side']} >> {payload.side}"
+                else:
+                    assert payload.side == 'buy', f"Wrong side to close position: {current_position['side']} >> {payload.side}"
+
+                order_size = current_position['contracts']
+
+            return exs[1].create_order(
+                payload.symbol,
+                'market',
+                str(payload.side),
+                order_size,
+                None,
+                params
+            )
+
+    except Exception as e:
+        return HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
