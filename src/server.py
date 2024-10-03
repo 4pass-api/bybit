@@ -1,3 +1,4 @@
+import json
 import os
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -197,6 +198,14 @@ async def oneway_action(
         payload: TradingViewRequest,
         exs=Depends(get_exchanges)
 ):
+    print("Received payload:", json.loads(payload.model_dump_json(indent=2)))
+
+    if payload.symbol not in exs[0].markets:
+        return HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Symbol {payload.symbol} not found"
+        )
+
     order_size = payload.size / exs[0].markets[payload.symbol]['contractSize']
 
     try:
