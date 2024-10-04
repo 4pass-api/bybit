@@ -7,15 +7,24 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    env_file:
-      - .env
     volumes:
       - ./src:/run/src
     environment:
       - PYTHONPATH=/run
-    command: "fastapi run src/server.py --host 0.0.0.0 --port 8000"
+    command: "fastapi run src/server.py --host 0.0.0.0 --port 8000 --reload"
     networks:
       - shared_network
+
+  redis:
+    container_name: redis
+    image: redis:7.0-alpine
+    restart: always
+    networks:
+      - shared_network
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./volume/redis_data:/data
 
 #  mysql:
 #    image: mysql:8.3
