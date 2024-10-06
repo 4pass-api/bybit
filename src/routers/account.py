@@ -49,7 +49,7 @@ async def set_leverage(
         exs=Depends(get_exchanges)
 ):
     try:
-        return {idx: ex.set_leverage(leverage, symbol) for idx, ex in enumerate(exs, 1)}
+        return {idx: ex.set_leverage(leverage, symbol) for idx, ex in enumerate(exs, 1) if ex.apiKey is not None}
     except Exception as e:
         return HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -83,11 +83,13 @@ async def get_api_key(
 @router.post('/apiKey')
 async def set_api_key(
         credentials: Credentials,
-        idx: Annotated[
-            int, Query(..., title="Exchange index", description="Exchange index", ge=0, le=1)
-        ] = 0,
+        _idx: Annotated[
+            int, Query(..., title="Exchange index", description="Exchange index", ge=1, le=2)
+        ] = 1,
         exs=Depends(get_exchanges)
 ):
+    idx = _idx - 1
+
     redis_client = get_redis_client()
 
     old_apiKey = exs[idx].apiKey
