@@ -1,3 +1,6 @@
+from typing import List
+
+from ccxt import Exchange
 from redis import StrictRedis as Redis
 from starlette.requests import Request
 
@@ -11,7 +14,7 @@ def get_ip(request: Request):
     return client_ip
 
 
-def get_exchanges(request: Request):
+def get_exchanges(request: Request) -> List[Exchange]:
     return request.app.state.exs
 
 

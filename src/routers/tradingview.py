@@ -1,5 +1,7 @@
 import json
+from typing import List, Annotated
 
+from ccxt import bybit
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.dependencies.basic import get_exchanges
@@ -15,7 +17,7 @@ router = APIRouter(
 @router.post('/oneway')
 async def oneway_action(
         payload: TradingViewRequest,
-        exs=Depends(get_exchanges)
+        exs: Annotated[List[bybit], Depends(get_exchanges)]
 ):
     print("Received payload:", json.loads(payload.model_dump_json(indent=2)))
 
@@ -26,51 +28,41 @@ async def oneway_action(
         )
 
     order_size = payload.size / exs[0].markets[payload.symbol]['contractSize']
+    account_idx = payload.action.split('_')[-1]
+    account_idx = int(account_idx) - 1
+
+    current_position = exs[account_idx].fetch_position(payload.symbol)
+    p_side = current_position['side'] if current_position else None
+    p_size = current_position['contracts'] if current_position else 0
+
+    params = {'positionIdx': 0}
 
     try:
-        if '1' in payload.action:
-            params = {'positionIdx': 0}
-            if 'close_position' in payload.action:
-                params['reduceOnly'] = True
-                current_position = exs[0].fetch_position(payload.symbol)
 
-                if current_position['side'] == 'long':
-                    assert payload.side == 'sell', f"Wrong side to close position: {current_position['side']} >> {payload.side}"
+        if 'close_position' in payload.action:
+            params['reduceOnly'] = True
+            if p_size > 0:
+                if payload.side == 'buy':
+                    assert p_side == 'short', f"Wrong side to close position: {p_side} >> {payload.side}"
                 else:
-                    assert payload.side == 'buy', f"Wrong side to close position: {current_position['side']} >> {payload.side}"
+                    assert p_side == 'long', f"Wrong side to close position: {p_side} >> {payload.side}"
 
-                order_size = current_position['contracts']
+            order_size = p_size
 
-            return exs[0].create_order(
-                payload.symbol,
-                'market',
-                str(payload.side),
-                order_size,
-                None,
-                params
-            )
+        if 'open_position' in payload.action:
+            if p_size > 0:
+                if (payload.side == 'buy' and p_side == 'short') or \
+                        (payload.side == 'sell' and p_side == 'long'):
+                    order_size = order_size + p_size
 
-        else:
-            params = {'positionIdx': 0}
-            if 'close_position' in payload.action:
-                params['reduceOnly'] = True
-                current_position = exs[1].fetch_position(payload.symbol)
-
-                if current_position['side'] == 'long':
-                    assert payload.side == 'sell', f"Wrong side to close position: {current_position['side']} >> {payload.side}"
-                else:
-                    assert payload.side == 'buy', f"Wrong side to close position: {current_position['side']} >> {payload.side}"
-
-                order_size = current_position['contracts']
-
-            return exs[1].create_order(
-                payload.symbol,
-                'market',
-                str(payload.side),
-                order_size,
-                None,
-                params
-            )
+        return exs[account_idx].create_order(
+            symbol=payload.symbol,
+            type='market',
+            side=payload.side,
+            amount=order_size,
+            price=None,
+            params=params
+        )
 
     except Exception as e:
         return HTTPException(

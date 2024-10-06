@@ -1,4 +1,5 @@
 from enum import Enum, EnumMeta
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -17,11 +18,6 @@ class CustomStringEnum(str, Enum, metaclass=MetaEnum):
         return self.value
 
 
-class SideEnum(CustomStringEnum):
-    BUY = "buy"
-    SELL = "sell"
-
-
 class ActionEnum(CustomStringEnum):
     OPEN_POSITION_1 = "open_position_1"
     CLOSE_POSITION_1 = "close_position_1"
@@ -30,7 +26,7 @@ class ActionEnum(CustomStringEnum):
 
 
 class TradingViewRequest(BaseModel):
-    side: SideEnum = Field(..., title="Side of the trade")
+    side: Literal['buy', 'sell'] = Field(..., title="Side of the trade")
     action: ActionEnum = Field(..., title="Action to take")
     size: float = Field(..., title="Size of the trade")
     symbol: str = Field(..., title="Symbol to trade")
