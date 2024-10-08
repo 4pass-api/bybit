@@ -64,13 +64,16 @@ async def setup_account(
         ],
         exs=Depends(get_exchanges)
 ):
-    try:
-        return {idx: ex.set_position_mode(False, symbol) for idx, ex in enumerate(exs, 1)}
-    except Exception as e:
-        return HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+    data = {}
+    for idx, ex in enumerate(exs, 1):
+        try:
+            response = ex.set_position_mode(True, symbol)
+        except Exception as e:
+            response = str(e)
+
+        data[idx] = response
+
+    return data
 
 
 @router.get('/apiKey')

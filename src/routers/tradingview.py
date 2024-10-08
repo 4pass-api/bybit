@@ -53,7 +53,16 @@ async def oneway_action(
             if p_size > 0:
                 if (payload.side == 'buy' and p_side == 'short') or \
                         (payload.side == 'sell' and p_side == 'long'):
-                    order_size = order_size + p_size
+                    # close position first
+                    _params = {'positionIdx': 0, 'reduceOnly': True}
+                    exs[account_idx].create_order(
+                        symbol=payload.symbol,
+                        type='market',
+                        side='buy' if p_side == 'short' else 'sell',
+                        amount=p_size,
+                        price=None,
+                        params=_params
+                    )
 
         return exs[account_idx].create_order(
             symbol=payload.symbol,
