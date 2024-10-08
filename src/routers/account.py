@@ -103,8 +103,8 @@ async def set_api_key(
         exs[idx].apiKey = credentials.apiKey
         exs[idx].secret = credentials.secretKey
         result = exs[idx].fetch_balance()
-        redis_client.set(f'BYBIT_APIKEY_{idx}', credentials.apiKey)
-        redis_client.set(f'BYBIT_SECRET_{idx}', credentials.secretKey)
+        redis_client.set(f'BYBIT_APIKEY_{_idx}', credentials.apiKey)
+        redis_client.set(f'BYBIT_SECRET_{_idx}', credentials.secretKey)
     except Exception as e:
         exs[idx].apiKey = old_apiKey
         exs[idx].secret = old_secret
