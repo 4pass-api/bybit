@@ -67,7 +67,7 @@ async def setup_account(
     data = {}
     for idx, ex in enumerate(exs, 1):
         try:
-            response = ex.set_position_mode(True, symbol)
+            response = ex.set_position_mode(False, symbol)
         except Exception as e:
             response = str(e)
 

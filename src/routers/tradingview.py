@@ -64,6 +64,8 @@ async def oneway_action(
                         params=_params
                     )
 
+                    order_size -= p_size
+
         return exs[account_idx].create_order(
             symbol=payload.symbol,
             type='market',
